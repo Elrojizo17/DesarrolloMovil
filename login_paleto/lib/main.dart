@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
-void main() {
+import 'notification_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -18,6 +22,46 @@ class MyApp extends StatelessWidget {
       ),
       home: const SplashScreen(),
     );
+  }
+}
+
+class AppAuth {
+  AppAuth._();
+
+  static const String defaultEmail = 'usuario@palet.knive';
+  static const String defaultPassword = 'paleto123';
+
+  static String? _registeredName;
+  static String? _registeredEmail;
+  static String? _registeredPassword;
+
+  static void registerAccount({
+    required String name,
+    required String email,
+    required String password,
+  }) {
+    _registeredName = name;
+    _registeredEmail = email;
+    _registeredPassword = password;
+  }
+
+  static bool login(String email, String password) {
+    final isDefaultAccount =
+        email == defaultEmail && password == defaultPassword;
+    final isRegisteredAccount =
+        _registeredEmail != null &&
+        _registeredPassword != null &&
+        email == _registeredEmail &&
+        password == _registeredPassword;
+
+    return isDefaultAccount || isRegisteredAccount;
+  }
+
+  static String get loginSuccessMessage {
+    if (_registeredName != null && _registeredName!.trim().isNotEmpty) {
+      return 'Bienvenido, $_registeredName';
+    }
+    return 'Bienvenido';
   }
 }
 
@@ -246,6 +290,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _probarNotificacion() async {
+    final instantTestOk = await NotificationService.instance.sendTestNotificationNow();
+    if (!instantTestOk) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnackBar(
+        'Permiso de notificaciones denegado. Habilitalo en ajustes.',
+        Colors.red[700]!,
+      );
+      return;
+    }
+
+    await NotificationService.instance.cancelLifeAvailableNotification();
+    await NotificationService.instance.scheduleLifeAvailableNotification(
+      delay: const Duration(seconds: 5),
+    );
+
+    _showSnackBar(
+      'Se envio una notificacion inmediata y otra programada a 5 segundos.',
+      Colors.blue[700]!,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -403,6 +472,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: _probarNotificacion,
+                    icon: const Icon(Icons.notifications_active_outlined),
+                    label: const Text(
+                      'Probar Notificacion (5s)',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.deepOrange[800],
+                      side: BorderSide(color: Colors.deepOrange[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -426,9 +515,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
-
-  final String _correctEmail = 'usuario@palet.knive';
-  final String _correctPassword = 'paleto123';
 
   @override
   void dispose() {
@@ -460,8 +546,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (email == _correctEmail && password == _correctPassword) {
-      _showSnackBar('¡Bienvenido! Login exitoso', Colors.green[700]!);
+    if (AppAuth.login(email, password)) {
+      _showSnackBar(
+        '${AppAuth.loginSuccessMessage}! Login exitoso',
+        Colors.green[700]!,
+      );
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
           Navigator.pushReplacement(
@@ -475,6 +564,35 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       _showSnackBar('Email o contraseña incorrectos', Colors.red[700]!);
     }
+  }
+
+  Future<void> _goToCreateAccount() async {
+    final result = await Navigator.push<Map<String, String>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RegisterScreen(),
+      ),
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    _emailController.text = result['email'] ?? '';
+    _passwordController.text = result['password'] ?? '';
+    _showSnackBar(
+      'Cuenta creada. Ahora puedes iniciar sesión.',
+      Colors.green[700]!,
+    );
+  }
+
+  void _goToRecoverAccount() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RecoverAccountScreen(),
+      ),
+    );
   }
 
   @override
@@ -579,15 +697,508 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: _goToRecoverAccount,
+                  icon: const Icon(Icons.help_outline),
+                  label: const Text('¿Olvidaste tu cuenta? Recuperar'),
+                ),
+                TextButton.icon(
+                  onPressed: _goToCreateAccount,
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text('Crear cuenta nueva'),
+                ),
                 // Botón Volver
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  child: const Text('¿No tienes cuenta? Volver'),
+                  child: const Text('Volver'),
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================
+// REGISTRO DE CUENTA
+// ============================================
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  bool get _hasMinLength => _passwordController.text.length >= 8;
+  bool get _hasUppercase => RegExp(r'[A-Z]').hasMatch(_passwordController.text);
+  bool get _hasLowercase => RegExp(r'[a-z]').hasMatch(_passwordController.text);
+  bool get _hasNumber => RegExp(r'[0-9]').hasMatch(_passwordController.text);
+  bool get _hasSpecialChar => RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(_passwordController.text);
+
+  bool get _passwordRecommendationMet =>
+      _hasMinLength && _hasUppercase && _hasLowercase && _hasNumber && _hasSpecialChar;
+
+  int get _passwordChecksCompleted {
+    int completed = 0;
+    if (_hasMinLength) completed++;
+    if (_hasUppercase) completed++;
+    if (_hasLowercase) completed++;
+    if (_hasNumber) completed++;
+    if (_hasSpecialChar) completed++;
+    return completed;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_refresh);
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    setState(() {});
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Widget _passwordRuleTile(String text, bool isValid) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isValid ? Colors.green[50] : Colors.grey[100],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isValid ? Colors.green[200]! : Colors.grey[300]!,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isValid ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 18,
+            color: isValid ? Colors.green[700] : Colors.grey[600],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: isValid ? Colors.green[900] : Colors.grey[700],
+                fontSize: 13,
+                fontWeight: isValid ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+          if (isValid)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.green[700],
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text(
+                'Listo',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _createAccount() {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showSnackBar('Completa todos los campos para crear la cuenta.', Colors.red[700]!);
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackBar('Las contraseñas no coinciden.', Colors.red[700]!);
+      return;
+    }
+
+    if (!_passwordRecommendationMet) {
+      _showSnackBar(
+        'Contraseña débil: sigue las recomendaciones mínimas sugeridas.',
+        Colors.orange[800]!,
+      );
+      return;
+    }
+
+    AppAuth.registerAccount(
+      name: name,
+      email: email,
+      password: password,
+    );
+
+    Navigator.pop(
+      context,
+      {
+        'email': email,
+        'password': password,
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        backgroundColor: Colors.deepOrange[700],
+        title: const Text('Crear Cuenta'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'Nombre de usuario',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Correo electrónico',
+                  hintText: 'nuevo@palet.knive',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                onChanged: (_) => setState(() {}),
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Crear contraseña',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _confirmPasswordController,
+                onChanged: (_) => setState(() {}),
+                obscureText: _obscureConfirmPassword,
+                decoration: InputDecoration(
+                  labelText: 'Confirmar contraseña',
+                  prefixIcon: const Icon(Icons.lock_reset),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.deepOrange[100]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recomendación mínima sugerida de contraseña:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.deepOrange[900],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(
+                          _passwordRecommendationMet
+                              ? Icons.verified
+                              : Icons.rule,
+                          size: 18,
+                          color: _passwordRecommendationMet
+                              ? Colors.green[700]
+                              : Colors.orange[800],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Cumplimiento: $_passwordChecksCompleted/5 requisitos',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _passwordRecommendationMet
+                                  ? Colors.green[800]
+                                  : Colors.orange[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _passwordRuleTile('Al menos 8 caracteres', _hasMinLength),
+                    const SizedBox(height: 6),
+                    _passwordRuleTile('Una letra mayúscula', _hasUppercase),
+                    const SizedBox(height: 6),
+                    _passwordRuleTile('Una letra minúscula', _hasLowercase),
+                    const SizedBox(height: 6),
+                    _passwordRuleTile('Un número', _hasNumber),
+                    const SizedBox(height: 6),
+                    _passwordRuleTile('Un carácter especial', _hasSpecialChar),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(
+                          _confirmPasswordController.text.isNotEmpty &&
+                                  _confirmPasswordController.text == _passwordController.text
+                              ? Icons.check_circle
+                              : Icons.info_outline,
+                          size: 18,
+                          color: _confirmPasswordController.text.isNotEmpty &&
+                                  _confirmPasswordController.text == _passwordController.text
+                              ? Colors.green[700]
+                              : Colors.blueGrey,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _confirmPasswordController.text.isEmpty
+                                ? 'Confirma tu contraseña para validar coincidencia.'
+                                : _confirmPasswordController.text == _passwordController.text
+                                    ? 'Confirmación correcta: contraseñas coinciden.'
+                                    : 'Las contraseñas aún no coinciden.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _confirmPasswordController.text.isEmpty
+                                  ? Colors.blueGrey[700]
+                                  : _confirmPasswordController.text == _passwordController.text
+                                      ? Colors.green[800]
+                                      : Colors.red[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _createAccount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'CREAR CUENTA',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================
+// RECUPERAR CUENTA
+// ============================================
+class RecoverAccountScreen extends StatefulWidget {
+  const RecoverAccountScreen({super.key});
+
+  @override
+  State<RecoverAccountScreen> createState() => _RecoverAccountScreenState();
+}
+
+class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
+  final TextEditingController _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  void _recoverAccount() {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showSnackBar('Ingresa tu correo para recuperar tu cuenta.', Colors.red[700]!);
+      return;
+    }
+
+    _showSnackBar(
+      'Si el correo existe, te enviamos instrucciones para recuperar tu cuenta.',
+      Colors.blue[700]!,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        backgroundColor: Colors.deepOrange[700],
+        title: const Text('Recuperar Cuenta'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              Text(
+                'Ingresa tu correo y te enviaremos los pasos de recuperación.',
+                style: TextStyle(
+                  color: Colors.grey[700],
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Correo electrónico',
+                  hintText: 'usuario@palet.knive',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _recoverAccount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'RECUPERAR CUENTA',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -690,7 +1301,12 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   int _currentLevel = 1;
+  static const int maxLevelForNormal = 10;
   static const int maxLevelForVisitor = 5;
+  bool _lifeNotificationScheduled = false;
+
+  bool get _isVisitorMode => widget.title == 'Modo Visitante';
+  int get _levelLimit => _isVisitorMode ? maxLevelForVisitor : maxLevelForNormal;
 
   void _showGameSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -707,6 +1323,8 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showLimitPopUp() {
+    final modeLabel = _isVisitorMode ? 'Modo Visitante' : 'Modo Normal';
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -724,15 +1342,17 @@ class _GameScreenState extends State<GameScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Modo Visitante: Solo puedes jugar hasta el Nivel $maxLevelForVisitor',
+                '$modeLabel: Solo puedes jugar hasta el Nivel $_levelLimit',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Para desbloquear más niveles, inicia sesión en tu cuenta.',
+              Text(
+                _isVisitorMode
+                    ? 'Para desbloquear más niveles, inicia sesión en tu cuenta.'
+                    : 'Has alcanzado el máximo de niveles permitidos para este modo.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
               ),
             ],
           ),
@@ -746,17 +1366,19 @@ class _GameScreenState extends State<GameScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                );
+                if (_isVisitorMode) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.deepOrange[700],
               ),
-              child: const Text('Iniciar Sesión'),
+              child: Text(_isVisitorMode ? 'Iniciar Sesión' : 'Aceptar'),
             ),
           ],
         );
@@ -764,8 +1386,29 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Future<void> _scheduleLifeNotificationIfNeeded() async {
+    if (_lifeNotificationScheduled) {
+      return;
+    }
+
+    await NotificationService.instance.scheduleLifeAvailableNotification();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _lifeNotificationScheduled = true;
+    });
+
+    _showGameSnackBar(
+      'Te avisaremos por notificacion cuando tu vida este disponible (1 min).',
+      Colors.blue[700]!,
+    );
+  }
+
   void _nextLevel() {
-    if (widget.title == 'Modo Visitante' && _currentLevel >= maxLevelForVisitor) {
+    if (_currentLevel >= _levelLimit) {
+      _scheduleLifeNotificationIfNeeded();
       _showLimitPopUp();
       return;
     }
