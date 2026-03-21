@@ -1,6 +1,11 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:workmanager/workmanager.dart';
+
+const String periodicNotificationTaskName = 'periodicNotificationTask';
+const String periodicNotificationUniqueName = 'paleto-periodic-notification';
 
 class NotificationService {
   NotificationService._();
@@ -15,6 +20,8 @@ class NotificationService {
       'Avisos cuando puedes volver a jugar';
   static const int _lifeNotificationId = 1001;
   static const int _testNotificationId = 1002;
+    static const String _periodicNotificationsPrefKey =
+      'periodic_notifications_enabled';
 
   Future<void> initialize() async {
     tz.initializeTimeZones();
@@ -62,7 +69,7 @@ class NotificationService {
   }
 
   Future<void> scheduleLifeAvailableNotification({
-    Duration delay = const Duration(minutes: 1),
+    Duration delay = const Duration(minutes: 5),
   }) async {
     final permissionGranted = await ensureNotificationPermission();
     if (!permissionGranted) {
@@ -123,5 +130,60 @@ class NotificationService {
 
   Future<void> cancelLifeAvailableNotification() async {
     await _plugin.cancel(_lifeNotificationId);
+  }
+
+  Future<bool> isPeriodicNotificationsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_periodicNotificationsPrefKey) ?? false;
+  }
+
+  Future<bool> setPeriodicNotificationsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!enabled) {
+      await _cancelPeriodicTask();
+      await prefs.setBool(_periodicNotificationsPrefKey, false);
+      return true;
+    }
+
+    final permissionGranted = await ensureNotificationPermission();
+    if (!permissionGranted) {
+      return false;
+    }
+
+    await _registerPeriodicTask();
+    await prefs.setBool(_periodicNotificationsPrefKey, true);
+    return true;
+  }
+
+  Future<void> syncPeriodicNotificationsWithPreference() async {
+    final enabled = await isPeriodicNotificationsEnabled();
+    if (!enabled) {
+      return;
+    }
+
+    final permissionGranted = await ensureNotificationPermission();
+    if (!permissionGranted) {
+      await setPeriodicNotificationsEnabled(false);
+      return;
+    }
+
+    await _registerPeriodicTask();
+  }
+
+  Future<void> _registerPeriodicTask() async {
+    await Workmanager().registerPeriodicTask(
+      periodicNotificationUniqueName,
+      periodicNotificationTaskName,
+      frequency: const Duration(minutes: 15),
+      existingWorkPolicy: ExistingWorkPolicy.replace,
+      constraints: Constraints(
+        networkType: NetworkType.not_required,
+      ),
+    );
+  }
+
+  Future<void> _cancelPeriodicTask() async {
+    await Workmanager().cancelByUniqueName(periodicNotificationUniqueName);
   }
 }

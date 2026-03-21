@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:workmanager/workmanager.dart';
 
+import 'background_worker.dart';
+import 'models/game_save.dart';
 import 'notification_service.dart';
+import 'screens/game_screen.dart';
+import 'screens/home_public_screen.dart';
+import 'services/game_session_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
   await NotificationService.instance.initialize();
+  await NotificationService.instance.syncPeriodicNotificationsWithPreference();
   runApp(const MyApp());
 }
 
@@ -99,13 +107,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Navegar a HomeScreen después de 4 segundos
+    // Navegar a la zona publica despues de 4 segundos
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
+            builder: (context) => const HomePublicScreen(),
           ),
         );
       }
@@ -163,345 +171,6 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 // ============================================
-// PANTALLA DE INICIO (Zona Pública)
-// ============================================
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: color,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_outline, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green[700],
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
-
-  void _showWarningSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.warning_amber, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.orange[800],
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
-
-  void _nuevaPartida() {
-    _showSuccessSnackBar('¡Nueva partida iniciada! Bienvenido a Paleto Knive');
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const GameScreen(title: 'Nueva Partida'),
-          ),
-        );
-      }
-    });
-  }
-
-  void _continuarPartida() {
-    _showSnackBar(
-      'Cargando última partida guardada...',
-      Colors.blue[700]!,
-    );
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        _showSuccessSnackBar('Partida restaurada correctamente');
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const GameScreen(title: 'Continuar Partida'),
-          ),
-        );
-      }
-    });
-  }
-
-  void _modoVisitante() {
-    _showWarningSnackBar(
-      'Modo Visitante: Puedes jugar hasta el Nivel 5 sin guardar progreso',
-    );
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const GameScreen(title: 'Modo Visitante'),
-          ),
-        );
-      }
-    });
-  }
-
-  void _irAlLogin() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const LoginScreen(),
-      ),
-    );
-  }
-
-  Future<void> _probarNotificacion() async {
-    final instantTestOk = await NotificationService.instance.sendTestNotificationNow();
-    if (!instantTestOk) {
-      if (!mounted) {
-        return;
-      }
-
-      _showSnackBar(
-        'Permiso de notificaciones denegado. Habilitalo en ajustes.',
-        Colors.red[700]!,
-      );
-      return;
-    }
-
-    await NotificationService.instance.cancelLifeAvailableNotification();
-    await NotificationService.instance.scheduleLifeAvailableNotification(
-      delay: const Duration(seconds: 5),
-    );
-
-    _showSnackBar(
-      'Se envio una notificacion inmediata y otra programada a 5 segundos.',
-      Colors.blue[700]!,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.restaurant,
-                  size: 100,
-                  color: Colors.deepOrange[700],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Paleto Knive',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepOrange[900],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Zona Pública (Sin sesión)',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Nueva Partida
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _nuevaPartida,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_circle_outline),
-                        SizedBox(width: 8),
-                        Text(
-                          'Nueva Partida',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Continuar Partida
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _continuarPartida,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.play_circle_outline),
-                        SizedBox(width: 8),
-                        Text(
-                          'Continuar Partida',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Modo Visitante
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _modoVisitante,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple[700],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.person_outline),
-                        SizedBox(width: 8),
-                        Text(
-                          'Modo Visitante',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // Botón de Iniciar Sesión
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _irAlLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepOrange[700],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.login),
-                        SizedBox(width: 8),
-                        Text(
-                          'Iniciar Sesión',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: _probarNotificacion,
-                    icon: const Icon(Icons.notifications_active_outlined),
-                    label: const Text(
-                      'Probar Notificacion (5s)',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.deepOrange[800],
-                      side: BorderSide(color: Colors.deepOrange[300]!),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================
 // FORMULARIO DE INICIO DE SESIÓN
 // ============================================
 class LoginScreen extends StatefulWidget {
@@ -537,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _validateAndLogin() {
+  Future<void> _validateAndLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -547,16 +216,29 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (AppAuth.login(email, password)) {
+      await GameSessionService.setLoggedUser(email);
+      var save = await GameSessionService.loadSavedGameForUser(email);
+      save ??= GameSave.newGame();
+      await GameSessionService.saveGameForUser(email, save);
+
       _showSnackBar(
         '${AppAuth.loginSuccessMessage}! Login exitoso',
         Colors.green[700]!,
       );
+
+      if (!mounted) {
+        return;
+      }
+
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const DashboardScreen(),
+              builder: (context) => GameScreen(
+                initialSave: save!,
+                userEmail: email,
+              ),
             ),
           );
         }
@@ -567,22 +249,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _goToCreateAccount() async {
-    final result = await Navigator.push<Map<String, String>>(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const RegisterScreen(),
       ),
-    );
-
-    if (!mounted || result == null) {
-      return;
-    }
-
-    _emailController.text = result['email'] ?? '';
-    _passwordController.text = result['password'] ?? '';
-    _showSnackBar(
-      'Cuenta creada. Ahora puedes iniciar sesión.',
-      Colors.green[700]!,
     );
   }
 
@@ -845,7 +516,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  void _createAccount() {
+  Future<void> _createAccount() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -875,13 +546,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
       password: password,
     );
 
-    Navigator.pop(
-      context,
-      {
-        'email': email,
-        'password': password,
-      },
-    );
+    await GameSessionService.setLoggedUser(email);
+    final save = GameSave.newGame();
+    await GameSessionService.saveGameForUser(email, save);
+
+    if (!mounted) {
+      return;
+    }
+
+    _showSnackBar('Cuenta creada e inicio de sesion exitoso.', Colors.green[700]!);
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) {
+        return;
+      }
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => GameScreen(
+            initialSave: save,
+            userEmail: email,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
+    });
   }
 
   @override
@@ -1228,7 +916,7 @@ class DashboardScreen extends StatelessWidget {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
+                  builder: (context) => const HomePublicScreen(),
                 ),
               );
             },
@@ -1263,7 +951,9 @@ class DashboardScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const GameScreen(title: 'Juego - Sesión iniciada'),
+                    builder: (context) => GameScreen(
+                      initialSave: GameSave.newGame(),
+                    ),
                   ),
                 );
               },
@@ -1287,19 +977,19 @@ class DashboardScreen extends StatelessWidget {
 // ============================================
 // PANTALLA DEL JUEGO
 // ============================================
-class GameScreen extends StatefulWidget {
+class LegacyGameScreen extends StatefulWidget {
   final String title;
 
-  const GameScreen({
+  const LegacyGameScreen({
     super.key,
     required this.title,
   });
 
   @override
-  State<GameScreen> createState() => _GameScreenState();
+  State<LegacyGameScreen> createState() => _LegacyGameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _LegacyGameScreenState extends State<LegacyGameScreen> {
   int _currentLevel = 1;
   static const int maxLevelForNormal = 10;
   static const int maxLevelForVisitor = 5;
