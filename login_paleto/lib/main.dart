@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'background_worker.dart';
@@ -10,7 +11,11 @@ import 'services/game_session_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
+
+  if (!kIsWeb) {
+    await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
+  }
+
   await NotificationService.instance.initialize();
   await NotificationService.instance.syncPeriodicNotificationsWithPreference();
   runApp(const MyApp());
@@ -112,9 +117,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (context) => const HomePublicScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const HomePublicScreen()),
         );
       }
     });
@@ -139,11 +142,7 @@ class _SplashScreenState extends State<SplashScreen>
               scale: _scaleAnimation,
               child: RotationTransition(
                 turns: _rotationAnimation,
-                child: Icon(
-                  Icons.restaurant,
-                  size: 120,
-                  color: Colors.white,
-                ),
+                child: Icon(Icons.restaurant, size: 120, color: Colors.white),
               ),
             ),
             const SizedBox(height: 24),
@@ -158,10 +157,7 @@ class _SplashScreenState extends State<SplashScreen>
             const SizedBox(height: 8),
             Text(
               'Cargando...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.white70),
             ),
           ],
         ),
@@ -199,9 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: color,
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -235,10 +229,8 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => GameScreen(
-                initialSave: save!,
-                userEmail: email,
-              ),
+              builder: (context) =>
+                  GameScreen(initialSave: save!, userEmail: email),
             ),
           );
         }
@@ -251,18 +243,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _goToCreateAccount() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const RegisterScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const RegisterScreen()),
     );
   }
 
   void _goToRecoverAccount() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const RecoverAccountScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const RecoverAccountScreen()),
     );
   }
 
@@ -294,10 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Inicia sesión para continuar',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 32),
                 // Email
@@ -326,8 +311,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword 
-                            ? Icons.visibility_off 
+                        _obscurePassword
+                            ? Icons.visibility_off
                             : Icons.visibility,
                       ),
                       onPressed: () {
@@ -408,7 +393,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -417,10 +403,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool get _hasUppercase => RegExp(r'[A-Z]').hasMatch(_passwordController.text);
   bool get _hasLowercase => RegExp(r'[a-z]').hasMatch(_passwordController.text);
   bool get _hasNumber => RegExp(r'[0-9]').hasMatch(_passwordController.text);
-  bool get _hasSpecialChar => RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(_passwordController.text);
+  bool get _hasSpecialChar =>
+      RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(_passwordController.text);
 
   bool get _passwordRecommendationMet =>
-      _hasMinLength && _hasUppercase && _hasLowercase && _hasNumber && _hasSpecialChar;
+      _hasMinLength &&
+      _hasUppercase &&
+      _hasLowercase &&
+      _hasNumber &&
+      _hasSpecialChar;
 
   int get _passwordChecksCompleted {
     int completed = 0;
@@ -459,9 +450,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         backgroundColor: color,
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -522,8 +511,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
-      _showSnackBar('Completa todos los campos para crear la cuenta.', Colors.red[700]!);
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      _showSnackBar(
+        'Completa todos los campos para crear la cuenta.',
+        Colors.red[700]!,
+      );
       return;
     }
 
@@ -540,11 +535,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    AppAuth.registerAccount(
-      name: name,
-      email: email,
-      password: password,
-    );
+    AppAuth.registerAccount(name: name, email: email, password: password);
 
     await GameSessionService.setLoggedUser(email);
     final save = GameSave.newGame();
@@ -554,7 +545,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    _showSnackBar('Cuenta creada e inicio de sesion exitoso.', Colors.green[700]!);
+    _showSnackBar(
+      'Cuenta creada e inicio de sesion exitoso.',
+      Colors.green[700]!,
+    );
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) {
         return;
@@ -562,10 +556,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => GameScreen(
-            initialSave: save,
-            userEmail: email,
-          ),
+          builder: (context) => GameScreen(initialSave: save, userEmail: email),
         ),
         (route) => route.isFirst,
       );
@@ -623,7 +614,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                     ),
                     onPressed: () {
                       setState(() {
@@ -726,12 +719,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         Icon(
                           _confirmPasswordController.text.isNotEmpty &&
-                                  _confirmPasswordController.text == _passwordController.text
+                                  _confirmPasswordController.text ==
+                                      _passwordController.text
                               ? Icons.check_circle
                               : Icons.info_outline,
                           size: 18,
-                          color: _confirmPasswordController.text.isNotEmpty &&
-                                  _confirmPasswordController.text == _passwordController.text
+                          color:
+                              _confirmPasswordController.text.isNotEmpty &&
+                                  _confirmPasswordController.text ==
+                                      _passwordController.text
                               ? Colors.green[700]
                               : Colors.blueGrey,
                         ),
@@ -740,16 +736,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Text(
                             _confirmPasswordController.text.isEmpty
                                 ? 'Confirma tu contraseña para validar coincidencia.'
-                                : _confirmPasswordController.text == _passwordController.text
-                                    ? 'Confirmación correcta: contraseñas coinciden.'
-                                    : 'Las contraseñas aún no coinciden.',
+                                : _confirmPasswordController.text ==
+                                      _passwordController.text
+                                ? 'Confirmación correcta: contraseñas coinciden.'
+                                : 'Las contraseñas aún no coinciden.',
                             style: TextStyle(
                               fontSize: 12,
                               color: _confirmPasswordController.text.isEmpty
                                   ? Colors.blueGrey[700]
-                                  : _confirmPasswordController.text == _passwordController.text
-                                      ? Colors.green[800]
-                                      : Colors.red[700],
+                                  : _confirmPasswordController.text ==
+                                        _passwordController.text
+                                  ? Colors.green[800]
+                                  : Colors.red[700],
                             ),
                           ),
                         ),
@@ -811,9 +809,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
         backgroundColor: color,
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -821,7 +817,10 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   void _recoverAccount() {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      _showSnackBar('Ingresa tu correo para recuperar tu cuenta.', Colors.red[700]!);
+      _showSnackBar(
+        'Ingresa tu correo para recuperar tu cuenta.',
+        Colors.red[700]!,
+      );
       return;
     }
 
@@ -847,10 +846,7 @@ class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
             children: [
               Text(
                 'Ingresa tu correo y te enviaremos los pasos de recuperación.',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: Colors.grey[700], fontSize: 15),
               ),
               const SizedBox(height: 20),
               TextField(
@@ -927,18 +923,11 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.dashboard,
-              size: 100,
-              color: Colors.deepOrange[700],
-            ),
+            Icon(Icons.dashboard, size: 100, color: Colors.deepOrange[700]),
             const SizedBox(height: 24),
             const Text(
               'Bienvenido al Dashboard',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -951,9 +940,8 @@ class DashboardScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => GameScreen(
-                      initialSave: GameSave.newGame(),
-                    ),
+                    builder: (context) =>
+                        GameScreen(initialSave: GameSave.newGame()),
                   ),
                 );
               },
@@ -980,10 +968,7 @@ class DashboardScreen extends StatelessWidget {
 class LegacyGameScreen extends StatefulWidget {
   final String title;
 
-  const LegacyGameScreen({
-    super.key,
-    required this.title,
-  });
+  const LegacyGameScreen({super.key, required this.title});
 
   @override
   State<LegacyGameScreen> createState() => _LegacyGameScreenState();
@@ -996,7 +981,8 @@ class _LegacyGameScreenState extends State<LegacyGameScreen> {
   bool _lifeNotificationScheduled = false;
 
   bool get _isVisitorMode => widget.title == 'Modo Visitante';
-  int get _levelLimit => _isVisitorMode ? maxLevelForVisitor : maxLevelForNormal;
+  int get _levelLimit =>
+      _isVisitorMode ? maxLevelForVisitor : maxLevelForNormal;
 
   void _showGameSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1005,9 +991,7 @@ class _LegacyGameScreenState extends State<LegacyGameScreen> {
         backgroundColor: color,
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -1022,11 +1006,7 @@ class _LegacyGameScreenState extends State<LegacyGameScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          icon: Icon(
-            Icons.lock_outline,
-            color: Colors.orange[800],
-            size: 50,
-          ),
+          icon: Icon(Icons.lock_outline, color: Colors.orange[800], size: 50),
           title: const Text('Límite Alcanzado'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1107,10 +1087,7 @@ class _LegacyGameScreenState extends State<LegacyGameScreen> {
       _currentLevel++;
     });
 
-    _showGameSnackBar(
-      'Avanzaste al Nivel $_currentLevel',
-      Colors.green[700]!,
-    );
+    _showGameSnackBar('Avanzaste al Nivel $_currentLevel', Colors.green[700]!);
   }
 
   @override
@@ -1127,11 +1104,7 @@ class _LegacyGameScreenState extends State<LegacyGameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.gamepad,
-              size: 100,
-              color: Colors.deepOrange[700],
-            ),
+            Icon(Icons.gamepad, size: 100, color: Colors.deepOrange[700]),
             const SizedBox(height: 24),
             Text(
               'Nivel $_currentLevel',
@@ -1144,10 +1117,7 @@ class _LegacyGameScreenState extends State<LegacyGameScreen> {
             const SizedBox(height: 16),
             Text(
               'Juego en progreso...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 40),
             ElevatedButton.icon(

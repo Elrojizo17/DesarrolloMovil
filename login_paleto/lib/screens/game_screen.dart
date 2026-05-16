@@ -48,6 +48,7 @@ class _GameScreenState extends State<GameScreen> {
             const ArsenalTab(),
             ProfileTab(
               isGuestMode: widget.isGuestMode,
+              userEmail: widget.userEmail,
               onLogout: _onLogout,
             ),
           ];
